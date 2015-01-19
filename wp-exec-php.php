@@ -149,6 +149,12 @@ class WP_exec_PHP {
 	 * @since 2.0
 	 */
 	function __construct() {
+		/* @DEBUG */
+		/* Symbolic Link Fix */
+		if (stripos($this->file, WP_PLUGIN_DIR) !== 0)
+			$this->file = WP_PLUGIN_DIR . DIRECTORY_SEPARATOR . basename(__FILE__, '.php') . DIRECTORY_SEPARATOR . basename(__FILE__);
+		/* /@DEBUG */
+		
 		load_plugin_textdomain($this->slug(), false, basename(dirname($this->file)) . '/lang');
 		
 		if (!$this->get_option('version') || version_compare($this->get_option('version'), $this->version(), '<')) {
