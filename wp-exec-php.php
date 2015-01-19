@@ -5,7 +5,7 @@
  * Description: Execute PHP inside posts, pages, text widgets and text widget titles. Add filters and actions using custom feilds.
  * Plugin Name: WP exec PHP
  * Plugin URI: http://xenthrax.com/wordpress/wp-exec-php/
- * Version: 2.0
+ * Version: 2.0.1
  * 
  * Donate: http://xenthrax.com/donate/
  * 
@@ -58,7 +58,14 @@ class WP_exec_PHP {
 	 * @var array
 	 */
 	private $notices = array();
-		
+	
+	/**
+	 * @access private
+	 * @since 2.0.1
+	 * @var string
+	 */
+	private $file = __FILE__;
+	
 	/**
 	 * @access private
 	 * @since 2.0
@@ -71,7 +78,7 @@ class WP_exec_PHP {
 		$key = strtolower($key);
 		
 		if (is_null($plugin_data)) {
-			$plugin_data = get_file_data(__FILE__, array(
+			$plugin_data = get_file_data($this->file, array(
 				'author'       => 'Author',
 				'authoruri'    => 'Author URI',
 				'donate'       => 'Donate',
@@ -142,7 +149,7 @@ class WP_exec_PHP {
 	 * @since 2.0
 	 */
 	function __construct() {
-		load_plugin_textdomain($this->slug(), false, basename(dirname(__FILE__)) . '/lang');
+		load_plugin_textdomain($this->slug(), false, basename(dirname($this->file)) . '/lang');
 		
 		if (!$this->get_option('version') || version_compare($this->get_option('version'), $this->version(), '<')) {
 			$old_options = get_option('wp-exec-php');
@@ -242,10 +249,10 @@ class WP_exec_PHP {
 	private function default_options() {
 		$options = array(
 			'allowed' => '',
-			'banned' => '',
-			'hooks' => false,
-			//'role' => 'administrator',
-			'role' => 'level_10',
+			'banned'  => '',
+			'hooks'   => false,
+			//'role'    => 'administrator',
+			'role'    => 'level_10',
 			'widgets' => false
 			);
 		return apply_filters("{$this->slug('hook')}-default-options", $options);
@@ -414,7 +421,7 @@ class WP_exec_PHP {
 	function _widget_title($content, $instance = '', $id_base = '') {
 		if ($id_base === 'text') {
 			if (apply_filters("{$this->slug('hook')}-do-exec-widget-title", true, $content, $instance, $id_base))
-				$content = $this->_exec_widget($content, false);
+				$content = $this->_exec_widget($content/*, false*/);
 			
 			$content = apply_filters("{$this->slug('hook')}-exec-widget-title", $content, $instance, $id_base);
 		}
@@ -516,6 +523,7 @@ class WP_exec_PHP {
 	 * @return array Links to display
 	 */
 	function _plugin_action_links($links) {
+		_deprecated_function(__CLASS__ . '::' . __FUNCTION__, '2.0', '$WP_exec_PHP->_plugin_row_meta()');
 		$links[] = '<a href="' . admin_url('options-general.php?page=' . urlencode($this->slug('plugin'))) . '">' . __('Settings', $this->slug()) . '</a>';
 		$links[] = "<a href=\"{$this->_plugin_data('donate')}\">" . __('Donate', $this->slug()) . '</a>';
 		return $links;
@@ -549,10 +557,10 @@ class WP_exec_PHP {
 		
 		switch ($context) {
 			case 'plugin':
-				$slug = plugin_basename(__FILE__);
+				$slug = plugin_basename($this->file);
 				break;
 			case 'settings':
-				$slug = 'settings_page_' . basename(dirname(__FILE__)) . '/' . basename(__FILE__, '.php');
+				$slug = 'settings_page_' . basename(dirname($this->file)) . '/' . basename($this->file, '.php');
 				break;
 			case 'name':
 			case 'slug':
@@ -629,7 +637,7 @@ class WP_exec_PHP {
 	 * @param string $content
 	 * @return string Content with PHP executed
 	 */
-	function exec($content = '', $comments = true) {	
+	function exec($content = ''/*, $comments = true*/) {	
 		$content = $this->normalize_php($content);
 		
 		// "Starting with PHP 5.4, short echo tag <?= is always recognized and valid, regardless of the short_open_tag setting." - php.net
@@ -643,9 +651,12 @@ class WP_exec_PHP {
 			
 			eval('?' . ">{$content}");
 			
-			$content = $comments ? $this->_comment_tag(true, false) : '';
+			$content = ob_get_clean();
+			
+			/* WordPress adds <br/> tags before/after comments. */
+			/*$content = $comments ? $this->_comment_tag(true, false) : '';
 			$content .= ob_get_clean();
-			$content .= $comments ? "\n{$this->_comment_tag(false, false)}" : '';
+			$content .= $comments ? "\n{$this->_comment_tag(false, false)}" : '';*/
 		}
 		
 		return apply_filters("{$this->slug('hook')}-exec", $content);
@@ -689,9 +700,9 @@ class WP_exec_PHP {
 	 * @param string $content
 	 * @return string Content with PHP executed/removed 
 	 */
-	function _exec_widget($content, $comments = true) {
+	function _exec_widget($content/*, $comments = true*/) {
 		if (apply_filters("{$this->slug('hook')}-do-exec-widget", true, $content))
-			$content = $this->get_option('widgets') ? $this->exec($content, $comments) : $this->clean($content);
+			$content = $this->get_option('widgets') ? $this->exec($content/*, $comments*/) : $this->clean($content);
 		
 		return apply_filters("{$this->slug('hook')}-exec-widget", $content);
 	}
@@ -832,7 +843,7 @@ class WP_exec_PHP {
 	 * @return void
 	 */
 	function _admin_menu() {
-		add_options_page($this->_plugin_data('name'), $this->_plugin_data('name'), 'manage_options', __FILE__, array(&$this, '_options_page'));
+		add_options_page($this->_plugin_data('name'), $this->_plugin_data('name'), 'manage_options', $this->file, array(&$this, '_options_page'));
 	}
 	
 	/**
@@ -931,7 +942,7 @@ if (user_can_richedit() && wp_default_editor() != 'html') { //are we using the v
 		global $wp_roles;
 		
 		if (isset($_POST["{$this->slug()}-submit"])) {
-			if (check_admin_referer(__FILE__ . "_{$this->slug()}_{$this->version()}")) {
+			if (check_admin_referer("{$this->file}_{$this->slug()}_{$this->version()}")) {
 				if (isset($_POST["{$this->slug()}-role"])) {
 					$role = stripslashes(trim($_POST["{$this->slug()}-role"]));
 					
@@ -947,7 +958,7 @@ if (user_can_richedit() && wp_default_editor() != 'html') { //are we using the v
 				$this->add_notice(__('Options saved successfully.', $this->slug()));
 			}
 		} else if (isset($_POST["{$this->slug()}-reset"])) {
-			if (check_admin_referer(__FILE__ . "_$this->slug()_{$this->version()}")) {
+			if (check_admin_referer("{$this->file}_{$this->slug()}_{$this->version()}")) {
 				foreach ($this->default_options() as $name => $value)
 					$this->set_option($name, $value);
 				
@@ -1008,22 +1019,29 @@ if (user_can_richedit() && wp_default_editor() != 'html') { //are we using the v
 					<tr>
 						<th scope="row"><?php _e('Role:', $this->slug()); ?></th>
 						<td>
-							<select name="<?php $this->slug(true, true); ?>-role">
+							<label>
+								<select name="<?php $this->slug(true, true); ?>-role">
 <?php
 foreach ($wp_roles->get_names() as $role => $name)
-	echo "\t\t\t\t\t\t\t\t<!--<option value=\"{$role}\"" . selected($the_role, $role, false) . ">{$name}</option>-->\n";
+	echo "\t\t\t\t\t\t\t\t\t<!--<option value=\"{$role}\"" . selected($the_role, $role, false) . ">{$name}</option>-->\n";
 
 for ($i = 10; $i > 0; $i--)
-	echo "\t\t\t\t\t\t\t\t<option value=\"level_{$i}\"" . selected($the_role, "level_{$i}", false) . '>' . sprintf(__('Level %1$d', $this->slug()), $i) ."</option>\n";
+	echo "\t\t\t\t\t\t\t\t\t<option value=\"level_{$i}\"" . selected($the_role, "level_{$i}", false) . '>' . sprintf(__('Level %1$d', $this->slug()), $i) ."</option>\n";
 ?>
-							</select>
-							<?php _e('The required <a href="http://codex.wordpress.org/Roles_and_Capabilities#User_Levels" target="_blank">User Level</a> to execute PHP in posts &amp; pages and hook onto actions and filters.', $this->slug()); ?>
+								</select>
+								<?php _e('The required <a href="http://codex.wordpress.org/Roles_and_Capabilities#User_Levels" target="_blank">User Level</a> to execute PHP in posts &amp; pages and hook onto actions and filters.', $this->slug()); ?> 
+							</label>
 						</td>
 					</tr>
 					<tr>
 						<th scope="row"><?php _e('Actions &amp; Filters:', $this->slug()); ?></th>
 						<td>
-							<p><input name="<?php $this->slug(true, true); ?>-hooks" type="checkbox"<?php checked($this->get_option('hooks')); ?> /> <?php _e('Allow hooking onto <a href="http://codex.wordpress.org/Plugin_API" target="_blank">actions and filters</a> using &quot;Custom Fields&quot;. Only works on posts and pages.', $this->slug()); ?></p>
+							<p>
+								<label>
+									<input name="<?php $this->slug(true, true); ?>-hooks" type="checkbox"<?php checked($this->get_option('hooks')); ?> />
+									<?php _e('Allow hooking onto <a href="http://codex.wordpress.org/Plugin_API" target="_blank">actions and filters</a> using &quot;Custom Fields&quot;. Only works on posts and pages.', $this->slug()); ?> 
+								</label>
+							</p>
 							<blockquote cite="http://codex.wordpress.org/Plugin_API">
 								<p><?php _e('Actions: Actions are the hooks that the WordPress core launches at specific points during execution, or when specific events occur. Your plugin can specify that one or more of its PHP functions are executed at these points, using the Action API.', $this->slug()); ?></p>
 							</blockquote>
@@ -1036,7 +1054,12 @@ for ($i = 10; $i > 0; $i--)
 					</tr>
 					<tr>
 						<th scope="row"><?php _e('Widgets:', $this->slug()); ?></th>
-						<td><input name="<?php $this->slug(true, true); ?>-widgets" type="checkbox"<?php checked($widgets); ?> /> <?php _e('Execute PHP in text widgets. Anyone who can add widgets can execute PHP if this option is selected.', $this->slug()); ?></td>
+						<td>
+							<label>
+								<input name="<?php $this->slug(true, true); ?>-widgets" type="checkbox"<?php checked($widgets); ?> />
+								<?php _e('Execute PHP in text widgets. Anyone who can add widgets can execute PHP if this option is selected.', $this->slug()); ?> 
+							</label>
+						</td>
 					</tr>
 					<tr><td>&nbsp;</td></tr>
 					<tr>
@@ -1050,7 +1073,7 @@ for ($i = 10; $i > 0; $i--)
 							<p style="margin:0;"><em class="dashed red" title="<?php _e('Will be added to a future release.', $this->slug()); ?>"><?php _e('Not yet supported.', $this->slug()); ?></em></p>
 						</td>
 					</tr>
-<?php do_action("{$this->slug('hook')}-options-page", $the_role, $widgets, $allowed, $banned); ?>
+<?php do_action("{$this->slug('hook')}-options-page"); ?>
 					<tr><td>&nbsp;</td></tr>
 					<tr>
 						<th><input type="submit" class="button-primary" name="<?php $this->slug(true, true); ?>-submit" value="<?php _e('Save', $this->slug()); ?>" /></th>
@@ -1063,7 +1086,7 @@ for ($i = 10; $i > 0; $i--)
 					</tr>
 				</table>
 			</fieldset>
-			<?php wp_nonce_field(__FILE__ . "_{$this->slug()}_{$this->version()}"); ?>
+			<?php wp_nonce_field("{$this->file}_{$this->slug()}_{$this->version()}"); ?>
 		</form>
 	</div>
 <?php
