@@ -984,13 +984,14 @@ if (user_can_richedit() && wp_default_editor() != 'html') { //are we using the v
 		$the_role = $this->get_option('role');
 		$widgets = $this->get_option('widgets');
 		$allowed = $banned = array();
-		
-		foreach (get_users_of_blog() as $blog_user) {
+		$blog_users = get_users_of_blog();
+
+		foreach ($blog_users as $blog_user) {
 			if ($this->banned_execute($blog_user->ID))
 				$banned[] = $blog_user->user_login;
 			else if ($this->can_execute($blog_user->ID)
 				|| ($widgets
-					&& $blog_user =& new WP_User($blog_user->ID)
+					&& $blog_user = new WP_User($blog_user->ID)
 					&& $blog_user->has_cap('edit_theme_options')))
 				$allowed[] = $blog_user->user_login;
 		}
